@@ -2,6 +2,7 @@
 #include <vector>
 #include <queue>
 #include <map>
+#include <algorithm>  // Include this header for std::sort
 #include <climits>
 
 using namespace std;
@@ -28,7 +29,7 @@ vector<int> uniform_cost_search(vector<vector<int>>& graph, map<pair<int, int>, 
         }
 
         queue.pop_back();
-        sort(queue.begin(), queue.end(), greater<pair<int, int>>());
+        sort(queue.begin(), queue.end(), greater<pair<int, int>>());  // Using std::sort
 
         if (count == goal.size()) {
             return answer;
