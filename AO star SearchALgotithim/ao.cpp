@@ -2,113 +2,90 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <climits>
 
 using namespace std;
 
-// Cost to find the AND and OR path
-map<string, int> Cost(map<string, int>& H, map<string, vector<string>>& condition, int weight = 1) {
+map<string, int> Cost(const map<string, int>& H, const map<string, vector<string>>& condition, int weight = 1) {
     map<string, int> cost;
     
     if (condition.count("AND")) {
-        vector<string> AND_nodes = condition["AND"];
+        vector<string> AND_nodes = condition.at("AND");
         string Path_A = "";
-        for (int i = 0; i < AND_nodes.size(); i++) {
-            Path_A += AND_nodes[i];
-            if (i != AND_nodes.size() - 1) {
-                Path_A += " AND ";
-            }
-        }
         int PathA = 0;
         for (const string& node : AND_nodes) {
-            PathA += H[node] + weight;
+            PathA += H.at(node) + weight;
+            Path_A += node + " AND ";
         }
+        Path_A.pop_back(); Path_A.pop_back(); Path_A.pop_back();  // Remove the last " AND "
         cost[Path_A] = PathA;
     }
     
     if (condition.count("OR")) {
-        vector<string> OR_nodes = condition["OR"];
+        vector<string> OR_nodes = condition.at("OR");
         string Path_B = "";
-        for (int i = 0; i < OR_nodes.size(); i++) {
-            Path_B += OR_nodes[i];
-            if (i != OR_nodes.size() - 1) {
-                Path_B += " OR ";
-            }
-        }
         int PathB = INT_MAX;
         for (const string& node : OR_nodes) {
-            PathB = min(PathB, H[node] + weight);
+            PathB = min(PathB, H.at(node) + weight);
+            Path_B += node + " OR ";
         }
+        Path_B.pop_back(); Path_B.pop_back(); Path_B.pop_back();  // Remove the last " OR "
         cost[Path_B] = PathB;
     }
     
     return cost;
 }
 
-// Update the cost
-map<string, map<string, int>> update_cost(map<string, int>& H, map<string, map<string, vector<string>>>& Conditions, int weight = 1) {
-    vector<string> Main_nodes;
-    for (const auto& entry : Conditions) {
-        Main_nodes.push_back(entry.first);
-    }
-    reverse(Main_nodes.begin(), Main_nodes.end());
-    
+map<string, map<string, int>> update_cost(map<string, int>& H, const map<string, map<string, vector<string>>>& Conditions, int weight = 1) {
     map<string, map<string, int>> least_cost;
     
-    for (const string& key : Main_nodes) {
-        map<string, vector<string>>& condition = Conditions[key];
-        cout << key << ": " << endl;
-        cout << Conditions[key] << " >>> " << Cost(H, condition, weight) << endl;
-        map<string, int> c = Cost(H, condition, weight);
-        H[key] = min_element(c.begin(), c.end(), [](const auto& a, const auto& b) {
-            return a.second < b.second;
-        })->second;
+    for (const pair<string, map<string, vector<string>>>& entry : Conditions) {
+        string key = entry.first;
+        const map<string, vector<string>>& condition = entry.second;
+
         least_cost[key] = Cost(H, condition, weight);
+        
+        int minVal = INT_MAX;
+        for (const pair<string, int>& costPair : least_cost[key]) {
+            minVal = min(minVal, costPair.second);
+        }
+        H[key] = minVal;
     }
     
     return least_cost;
 }
 
-// Print the shortest path
-string shortest_path(string Start, map<string, map<string, int>>& Updated_cost, map<string, int>& H) {
-    string Path = Start;
+string shortest_path(const string& Start, const map<string, map<string, int>>& Updated_cost, const map<string, int>& H) {
+    if (Updated_cost.count(Start) == 0) {
+        return Start;
+    }
     
-    if (Updated_cost.count(Start)) {
-        int Min_cost = min_element(Updated_cost[Start].begin(), Updated_cost[Start].end(), [](const auto& a, const auto& b) {
-            return a.second < b.second;
-        })->second;
-        
-        string key = "";
-        for (const auto& entry : Updated_cost[Start]) {
-            if (entry.second == Min_cost) {
-                key = entry.first;
-                break;
-            }
-        }
-        
-        vector<string> Next;
-        size_t pos = 0;
-        string delimiter = " ";
-        while ((pos = key.find(delimiter)) != string::npos) {
-            Next.push_back(key.substr(0, pos));
-            key.erase(0, pos + delimiter.length());
-        }
-        Next.push_back(key);
-        
-        if (Next.size() == 1) {
-            Start = Next[0];
-            Path += " <-- " + shortest_path(Start, Updated_cost, H);
-        } else {
-            Path += " <-- (" + key + ") ";
-            
-            Start = Next[0];
-            Path += "[" + shortest_path(Start, Updated_cost, H) + " + ";
-            
-            Start = Next[Next.size() - 1];
-            Path += shortest_path(Start, Updated_cost, H) + "]";
+    int minCost = INT_MAX;
+    string nextKey;
+    for (const pair<string, int>& entry : Updated_cost.at(Start)) {
+        if (entry.second < minCost) {
+            minCost = entry.second;
+            nextKey = entry.first;
         }
     }
     
-    return Path;
+    vector<string> nodes;
+    string delimiter = " ";
+    size_t pos = 0;
+    while ((pos = nextKey.find(delimiter)) != string::npos) {
+        nodes.push_back(nextKey.substr(0, pos));
+        nextKey.erase(0, pos + delimiter.length());
+    }
+    nodes.push_back(nextKey);
+    
+    string path = Start + " <-- (" + nextKey + ") ";
+    if (nodes.size() > 1) {
+        path += "[" + shortest_path(nodes[0], Updated_cost, H) + " + " + shortest_path(nodes[nodes.size() - 1], Updated_cost, H) + "]";
+    } else {
+        path += shortest_path(nodes[0], Updated_cost, H);
+    }
+    
+    return path;
 }
 
 int main() {
@@ -136,9 +113,20 @@ int main() {
 
     cout << "Updated Cost:" << endl;
     map<string, map<string, int>> Updated_cost = update_cost(H, Conditions, weight);
-    cout << string(75, '*') << endl;
-    cout << "Shortest Path:" << endl;
-    cout << shortest_path("A", Updated_cost, H) << endl;
+    for (const auto& pair : Updated_cost) {
+        const string& key = pair.first;
+        const map<string, int>& cost_map = pair.second;
+
+        cout << key << ": ";
+        for (const auto& cost_pair : cost_map) {
+            const string& path = cost_pair.first;
+            int cost = cost_pair.second;
+            cout << path << " (" << cost << ") ";
+        }
+        cout << endl;
+    }
+
+    cout << "Shortest Path: " << shortest_path("A", Updated_cost, H) << endl;
 
     return 0;
 }
